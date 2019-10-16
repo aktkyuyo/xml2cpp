@@ -10,7 +10,7 @@ collection = DOMTree.documentElement
  
 # 
 xlsdata_path = collection.getElementsByTagName("xlsdata_path")[0].childNodes[0].data
-xlsname = collection.getElementsByTagName("xlsname")[0].childNodes[0].data
+xlsname = collection.getElementsByTagName("xls_name")[0].childNodes[0].data
 
 #################################################################################
 #################################################################################
@@ -26,7 +26,6 @@ row_2 = sheet2.row_values(1) # 获取第2行内容
 name_xml = row_2[0]
 path_xml = row_2[1]
 start_crow = row_2[2] - 1
-start_key_row = start_crow
 start_xml_row = start_crow + 2
 names_sheet = row_2[3:]
 #print(name_xml)
@@ -166,7 +165,7 @@ file_cpp_func_load = '''bool {0}::Init(const std::string &path, std::string &err
 ##########################start##################################################
 #################################################################################
 for index in range(1, counts_sheet):
-	++counts_xml_name;
+	counts_xml_name = counts_xml_name + 1;
 	#print (counts_sheet)
 	if counts_xml_name > counts_xml_names: 
 		break
@@ -185,9 +184,10 @@ for index in range(1, counts_sheet):
 	func_name = DoNameBy_(name_cur_sheet) + pos_name
 	
 	#################################################################################
-	rows_cs_name = sheet_tmp.row_values(int(start_crow))
+	rows_key = sheet_tmp.row_values(int(start_crow))
+	#print(rows_cs_name)
 	rows_func_name = sheet_tmp.row_values(int(start_xml_row))
-	rows_key = sheet_tmp.row_values(int(start_key_row))
+	#print(start_crow)
 	#cols = sheet2.col_values(1,1) # 获取第二列内容
 	
 	#################################################################################
@@ -198,34 +198,55 @@ for index in range(1, counts_sheet):
 	file_struct_single = ''
 	find_count = 0;
 	#一个表一个分页的所有变量
-	for index  in range(0, len(rows_cs_name)):
-		value_cs = rows_cs_name[index][0:2]
-		value_flag = rows_key[index]
+	for index  in range(0, len(rows_key)):
+		
+		#print(rows_cs_name[index])
+		
+		#print(rows_key)
+		value_flag = str(rows_key[index])
+		if len(value_flag) <= 0:
+			continue
+			
 		value_name = rows_func_name[index]
-		if value_cs.find("s") < 0 or len(value_name) <= 0:
+		if value_flag.find("s") < 0 or len(value_name) <= 0:
 			continue
 		
 		find_count += 1
 		value_name = GrepValueNameByComma(value_name)
 		
 		####main to cpp init
-		if value_flag.find('item_list') >= 0:
-			file_cpp_func_init_single += '''		if (!ReadItemListConfig(data_element, "{0}", cfg.{0}))'''.format(value_name)
-			file_struct_single += '	std::vector<ItemConfigData> ' + value_name + "_list;\n"
-
-		elif value_flag.find('item_id') >= 0:
-			file_cpp_func_init_single += '''		if (!GetSubNodeValue(data_element, "{0}", !ITEMPOOL->GetItem(cfg.{0}))'''.format(value_name)
-		elif value_flag.find('item') >= 0:
-			file_cpp_func_init_single += '''		if (!ReadItemConfig(data_element, "{0}", cfg.{0});'''.format(value_name)
+		#print(value_flag)
+		is_deal = 0;
+		if value_flag.find("itemlist") >= 0:
+			file_cpp_func_init_single += '''		if (!ReadItemList2(data_element, "{0}", cfg.{0}_list), err)'''.format(value_name)
+			file_struct_single += '	ItemConfigList ' + value_name + "_list;\n"
+			is_deal = 1
+			
+		elif value_flag.find("item") >= 0:
+			file_cpp_func_init_single += '''		if (!ReadItem2(data_element, "{0}", cfg.{0}, err);'''.format(value_name)
 			file_struct_single += '	ItemConfigData ' + value_name + ";\n"
-
+			is_deal = 1
+		
+		elif value_name.find('list') >= 0:		
+			file_cpp_func_init_single += '''		if (!GetSubNodeValue(data_element, "{0}", cfg.{0}))'''.format(value_name)
+			file_struct_single += '	VectorInt ' + value_name + ";\n"
+			is_deal = 2
+			
+		elif value_name.find('item_id') >= 0:
+			file_cpp_func_init_single += '''		if (!GetSubNodeValue(data_element, "{0}", cfg.{0}) || !ITEMPOOL->GetItem(cfg.{0}))'''.format(value_name)
+			file_struct_single += '	int ' + value_name + " = 0;\n"
+			
 		else:
 			file_cpp_func_init_single += '''		if (!GetSubNodeValue(data_element, "{0}", cfg.{0}) || cfg.{0} < 0)'''.format(value_name)
 			file_struct_single += '	int ' + value_name + " = 0;\n"
 		
 		###main 
 		file_cpp_func_init_single += '\n' + '		{\n'
-		file_cpp_func_init_single += '''			err = "load [{0}] err -> " + std::to_string(cfg.{0});\n'''.format(value_name)
+		if is_deal == 0:
+			file_cpp_func_init_single += '''			err = "load [{0}] err -> " + std::to_string(cfg.{0});\n'''.format(value_name)
+		elif is_deal == 2:
+			file_cpp_func_init_single += '''			err = "load [{0}] err!!!;\n'''.format(value_name)
+			
 		file_cpp_func_init_single += '			return false;'
 		file_cpp_func_init_single += '\n' + '		}\n\n'
 
@@ -286,6 +307,7 @@ head_hpp = '''#ifndef __{0}_HPP__
 #include "servercommon/struct/itemlistparam.h"
 #include <vector>
 #include "common/pugixml/pugixmluser.hpp"
+#include "servercommon/configcommon2.hpp"
 
 '''.format(name_xml.upper())
 
