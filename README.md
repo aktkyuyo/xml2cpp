@@ -1,4 +1,4 @@
 # xml2cpp
 use in work project
 
-only by lyy
+only use for lyy project work
